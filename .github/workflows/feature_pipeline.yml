@@ -1,48 +1,49 @@
 name: Hourly Feature Pipeline
 
 on:
-  workflow_dispatch:  # Manual trigger
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
 
 jobs:
   collect-data:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-    
-    - name: Install compatible Hopsworks version
-      run: |
-        python -m pip install --upgrade pip
-        # Install Hopsworks 4.2.x to match server
-        pip install hopsworks==4.2.*
-        # Install other dependencies
-        pip install python-dotenv pandas numpy requests scikit-learn
-    
-    - name: Verify installation
-      run: |
-        pip list | grep hopsworks
-        python -c "import hopsworks; print(f'✅ Hopsworks version: {hopsworks.__version__}')"
-    
-    - name: Run feature pipeline
-      env:
-        HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
-        HOPSWORKS_PROJECT_NAME: ${{ secrets.HOPSWORKS_PROJECT_NAME }}
-        HOPSWORKS_HOST: ${{ secrets.HOPSWORKS_HOST }}
-      run: |
-        cd feature_pipeline
-        python run_pipeline.py
-    
-    - name: Upload logs on failure
-      if: failure()
-      uses: actions/upload-artifact@v3
-      with:
-        name: error-logs
-        path: |
-          feature_pipeline/logs/
-          feature_pipeline/*.log
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies (with specific hopsworks version)
+        run: |
+          python -m pip install --upgrade pip
+          # First install hopsworks 4.2.* specifically
+          pip install hopsworks==4.2.*
+          # Then install other dependencies from requirements.txt
+          pip install -r requirements.txt
+      
+      - name: Verify installation
+        run: |
+          python -c "import hopsworks; print(f'Hopsworks version: {hopsworks.__version__}')"
+      
+      - name: Run Feature Pipeline
+        env:
+          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+          HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+          HOPSWORKS_PROJECT_NAME: ${{ secrets.HOPSWORKS_PROJECT_NAME }}
+          CITY_NAME: Karachi
+          LATITUDE: 24.8607
+          LONGITUDE: 67.0011
+        run: |
+          cd feature_pipeline
+          python run_pipeline.py
+      
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Feature pipeline failed!"
+          echo "Check the logs above for error details"
