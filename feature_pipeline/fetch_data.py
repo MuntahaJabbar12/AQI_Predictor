@@ -39,35 +39,49 @@ def fetch_weather_data(lat: float = LATITUDE, lon: float = LONGITUDE) -> Optiona
     Returns:
         Dictionary with weather data or None if error
     """
-    try:
-        url = "https://api.open-meteo.com/v1/forecast"
-        params = {
-            "latitude": lat,
-            "longitude": lon,
-            "current": "temperature_2m,relative_humidity_2m,pressure_msl,wind_speed_10m",
-            "timezone": "auto"
-        }
-        
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        
-        data = response.json()
-        current = data.get('current', {})
-        
-        weather_data = {
-            'timestamp': datetime.fromisoformat(current.get('time')),
-            'temperature': current.get('temperature_2m'),
-            'humidity': current.get('relative_humidity_2m'),
-            'pressure': current.get('pressure_msl'),
-            'wind_speed': current.get('wind_speed_10m')
-        }
-        
-        print(f"✓ Weather data fetched successfully for {CITY_NAME}")
-        return weather_data
-        
-    except Exception as e:
-        print(f"✗ Error fetching weather data: {str(e)}")
-        return None
+    max_retries = 3
+    retry_delay = 2
+    
+    for attempt in range(max_retries):
+        try:
+            url = "https://api.open-meteo.com/v1/forecast"
+            params = {
+                "latitude": lat,
+                "longitude": lon,
+                "current": "temperature_2m,relative_humidity_2m,pressure_msl,wind_speed_10m",
+                "timezone": "auto"
+            }
+            
+            response = requests.get(url, params=params, timeout=30)  # Increased to 30 seconds
+            response.raise_for_status()
+            
+            data = response.json()
+            current = data.get('current', {})
+            
+            weather_data = {
+                'timestamp': datetime.fromisoformat(current.get('time')),
+                'temperature': current.get('temperature_2m'),
+                'humidity': current.get('relative_humidity_2m'),
+                'pressure': current.get('pressure_msl'),
+                'wind_speed': current.get('wind_speed_10m')
+            }
+            
+            print(f"✓ Weather data fetched successfully for {CITY_NAME}")
+            return weather_data
+            
+        except requests.exceptions.Timeout:
+            if attempt < max_retries - 1:
+                print(f"⚠️  Timeout on attempt {attempt + 1}/{max_retries}, retrying in {retry_delay}s...")
+                time.sleep(retry_delay)
+                continue
+            else:
+                print(f"✗ Error fetching weather data: Timeout after {max_retries} attempts")
+                return None
+        except Exception as e:
+            print(f"✗ Error fetching weather data: {str(e)}")
+            return None
+    
+    return None
 
 
 def fetch_pollution_data(lat: float = LATITUDE, lon: float = LONGITUDE) -> Optional[Dict]:
@@ -85,44 +99,58 @@ def fetch_pollution_data(lat: float = LATITUDE, lon: float = LONGITUDE) -> Optio
         print("✗ OpenWeather API key not configured. Please add it to .env file")
         return None
     
-    try:
-        url = "http://api.openweathermap.org/data/2.5/air_pollution"
-        params = {
-            "lat": lat,
-            "lon": lon,
-            "appid": OPENWEATHER_API_KEY
-        }
-        
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        
-        data = response.json()
-        
-        if 'list' not in data or len(data['list']) == 0:
-            print("✗ No pollution data available")
+    max_retries = 3
+    retry_delay = 2
+    
+    for attempt in range(max_retries):
+        try:
+            url = "http://api.openweathermap.org/data/2.5/air_pollution"
+            params = {
+                "lat": lat,
+                "lon": lon,
+                "appid": OPENWEATHER_API_KEY
+            }
+            
+            response = requests.get(url, params=params, timeout=30)  # Increased to 30 seconds
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            if 'list' not in data or len(data['list']) == 0:
+                print("✗ No pollution data available")
+                return None
+            
+            pollution = data['list'][0]
+            components = pollution.get('components', {})
+            aqi = pollution.get('main', {}).get('aqi', 0)
+            
+            pollution_data = {
+                'timestamp': datetime.fromtimestamp(pollution.get('dt')),
+                'aqi': aqi,
+                'pm2_5': components.get('pm2_5', 0),
+                'pm10': components.get('pm10', 0),
+                'co': components.get('co', 0),
+                'no2': components.get('no2', 0),
+                'so2': components.get('so2', 0),
+                'o3': components.get('o3', 0)
+            }
+            
+            print(f"✓ Pollution data fetched successfully for {CITY_NAME} (AQI: {aqi})")
+            return pollution_data
+            
+        except requests.exceptions.Timeout:
+            if attempt < max_retries - 1:
+                print(f"⚠️  Timeout on attempt {attempt + 1}/{max_retries}, retrying in {retry_delay}s...")
+                time.sleep(retry_delay)
+                continue
+            else:
+                print(f"✗ Error fetching pollution data: Timeout after {max_retries} attempts")
+                return None
+        except Exception as e:
+            print(f"✗ Error fetching pollution data: {str(e)}")
             return None
-        
-        pollution = data['list'][0]
-        components = pollution.get('components', {})
-        aqi = pollution.get('main', {}).get('aqi', 0)
-        
-        pollution_data = {
-            'timestamp': datetime.fromtimestamp(pollution.get('dt')),
-            'aqi': aqi,
-            'pm2_5': components.get('pm2_5', 0),
-            'pm10': components.get('pm10', 0),
-            'co': components.get('co', 0),
-            'no2': components.get('no2', 0),
-            'so2': components.get('so2', 0),
-            'o3': components.get('o3', 0)
-        }
-        
-        print(f"✓ Pollution data fetched successfully for {CITY_NAME} (AQI: {aqi})")
-        return pollution_data
-        
-    except Exception as e:
-        print(f"✗ Error fetching pollution data: {str(e)}")
-        return None
+    
+    return None
 
 
 def fetch_historical_weather(lat: float, lon: float, start_date: str, end_date: str) -> Optional[Dict]:
