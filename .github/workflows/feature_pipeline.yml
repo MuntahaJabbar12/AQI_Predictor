@@ -1,0 +1,54 @@
+name: Hourly Feature Pipeline
+
+# Run every hour to collect fresh AQI data
+on:
+  schedule:
+    # Runs at minute 0 of every hour (0 * * * *)
+    - cron: '0 * * * *'
+  
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  collect-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run Feature Pipeline
+        env:
+          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+          HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+          HOPSWORKS_PROJECT_NAME: ${{ secrets.HOPSWORKS_PROJECT_NAME }}
+          CITY_NAME: Karachi
+          LATITUDE: 24.8607
+          LONGITUDE: 67.0011
+        run: |
+          cd feature_pipeline
+          python run_pipeline.py
+      
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Feature pipeline failed!"
+          echo "Check the logs above for error details"
