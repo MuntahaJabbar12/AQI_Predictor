@@ -15,10 +15,13 @@ import pandas as pd
 from typing import Optional, Dict, List
 from datetime import datetime
 import hopsworks
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (optional - GitHub Actions provides them directly)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except:
+    pass  # In GitHub Actions, env vars are already available
 
 HOPSWORKS_API_KEY = os.getenv('HOPSWORKS_API_KEY')
 HOPSWORKS_PROJECT_NAME = os.getenv('HOPSWORKS_PROJECT_NAME', 'aqi_predictor')

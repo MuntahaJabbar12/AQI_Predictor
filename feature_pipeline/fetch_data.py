@@ -13,10 +13,13 @@ import requests
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 import time
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (optional - GitHub Actions provides them directly)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except:
+    pass  # In GitHub Actions, env vars are already available
 
 # Configuration
 OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
