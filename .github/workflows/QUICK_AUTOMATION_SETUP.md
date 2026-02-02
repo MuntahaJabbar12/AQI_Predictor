@@ -8,7 +8,7 @@ cd E:\AQI_Predictor\AQI_Predictor
 git init
 git add .
 git commit -m "Add automation"
-git remote add origin https://github.com/YOUR_USERNAME/AQI_Predictor.git
+git remote add origin https://github.com/MuntahaJabbar12/AQI_Predictor.git
 git push -u origin main
 ```
 
