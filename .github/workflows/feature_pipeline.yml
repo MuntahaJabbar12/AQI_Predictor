@@ -1,13 +1,18 @@
 name: Hourly Feature Pipeline
 
+# Run every hour to collect fresh AQI data
 on:
   schedule:
+    # Runs at minute 0 of every hour (0 * * * *)
     - cron: '0 * * * *'
+  
+  # Allow manual trigger
   workflow_dispatch:
 
 jobs:
   collect-data:
     runs-on: ubuntu-latest
+    timeout-minutes: 15  # Fail if takes more than 15 minutes
     
     steps:
       - name: Checkout code
@@ -18,23 +23,31 @@ jobs:
         with:
           python-version: '3.10'
       
-      - name: Install ALL required dependencies
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # Install pyarrow FIRST (important for Hopsworks)
-          pip install pyarrow>=14.0.0
-          # Install hopsworks with python extras
-          pip install "hopsworks[python]==4.2.*"
-          # Install other dependencies
-          pip install python-dotenv pandas numpy requests scikit-learn
+          # Install core dependencies first
+          pip install requests pandas numpy pytz python-dateutil
+          # Install hopsworks with all extras
+          pip install "hopsworks[python]==4.2.*" pyarrow
+          # Install remaining dependencies
+          pip install -r requirements.txt || true
+        continue-on-error: false
       
-      - name: VERIFY ALL installations
+      - name: Verify installations
         run: |
-          echo "=== VERIFICATION ==="
-          python -c "import pyarrow; print(f'✅ PyArrow: {pyarrow.__version__}')"
-          python -c "import hopsworks; print(f'✅ Hopsworks: {hopsworks.__version__}')"
-          python -c "import pandas; print(f'✅ Pandas: {pandas.__version__}')"
-          python -c "import numpy; print(f'✅ Numpy: {numpy.__version__}')"
+          python -c "import hopsworks; print(f'Hopsworks version: {hopsworks.__version__}')"
+          python -c "import pyarrow; print(f'PyArrow version: {pyarrow.__version__}')"
+          python -c "import requests; print('Requests OK')"
+          python -c "import pandas; print('Pandas OK')"
       
       - name: Run Feature Pipeline
         env:
@@ -47,9 +60,24 @@ jobs:
         run: |
           cd feature_pipeline
           python run_pipeline.py
+        timeout-minutes: 10
+      
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: pipeline-logs
+          path: |
+            feature_pipeline/*.log
+            feature_pipeline/*.txt
+          retention-days: 7
       
       - name: Notify on failure
         if: failure()
         run: |
           echo "❌ Feature pipeline failed!"
           echo "Check the logs above for error details"
+          echo "Common issues:"
+          echo "  1. API keys not set in GitHub Secrets"
+          echo "  2. Network timeout"
+          echo "  3. Hopsworks connection issue"
