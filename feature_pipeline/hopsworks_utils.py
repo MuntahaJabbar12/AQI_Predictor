@@ -136,7 +136,7 @@ def insert_features(project, df: pd.DataFrame, feature_group_name: str = "aqi_fe
         if fg is not None:
             # Insert into existing feature group
             print(f"📤 Inserting {len(df)} records to existing feature group...")
-            fg.insert(df, write_options={"start_offline_materialization": False})
+            fg.insert(df, write_options={"wait_for_job": True})  # ← CHANGED!
             print(f"✓ Successfully inserted {len(df)} records")
         else:
             # Create new feature group with data
@@ -153,7 +153,7 @@ def insert_features(project, df: pd.DataFrame, feature_group_name: str = "aqi_fe
             
             # Insert data (offline mode to avoid Kafka requirement)
             print(f"📤 Inserting {len(df)} records...")
-            fg.insert(df, write_options={"start_offline_materialization": False})
+            fg.insert(df, write_options={"wait_for_job": True})  # ← Already correct!
             print(f"✓ Successfully inserted {len(df)} records")
         
         return True
