@@ -31,12 +31,10 @@ from feature_pipeline.hopsworks_utils import (
 from feature_pipeline.feature_engineering import prepare_features_for_training
 
 # ML Libraries
-from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from sklearn.linear_model import LinearRegression, Ridge, Lasso
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
-from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor
 
 # Advanced models (optional)
 try:
@@ -202,7 +200,12 @@ def load_and_prepare_data(project):
 
 def train_models(X_train, X_test, y_train, y_test):
     """
-    Train multiple ML models and compare performance.
+    Train the 3 best ML models and compare performance.
+    
+    Models:
+    - Random Forest: Ensemble of decision trees
+    - XGBoost: Gradient boosting with regularization
+    - LightGBM: Fast gradient boosting
     
     Args:
         X_train, X_test, y_train, y_test: Training and test data
@@ -211,79 +214,40 @@ def train_models(X_train, X_test, y_train, y_test):
         Dictionary with trained models and their metrics
     """
     print("\n" + "="*60)
-    print("🤖 TRAINING MODELS")
+    print("🤖 TRAINING 3 BEST MODELS")
     print("="*60 + "\n")
     
     models = {}
     results = []
     
-    # 1. Linear Regression (Baseline)
-    print("1️⃣  Training Linear Regression (baseline)...")
-    lr = LinearRegression()
-    lr.fit(X_train, y_train)
-    y_pred_lr = lr.predict(X_test)
-    metrics_lr = calculate_metrics(y_test, y_pred_lr, "Linear Regression")
-    models['Linear Regression'] = lr
-    results.append(metrics_lr)
-    print(f"   RMSE: {metrics_lr['RMSE']}, MAE: {metrics_lr['MAE']}, R²: {metrics_lr['R2']}")
-    
-    # 2. Ridge Regression
-    print("\n2️⃣  Training Ridge Regression...")
-    ridge = Ridge(alpha=1.0, random_state=42)
-    ridge.fit(X_train, y_train)
-    y_pred_ridge = ridge.predict(X_test)
-    metrics_ridge = calculate_metrics(y_test, y_pred_ridge, "Ridge Regression")
-    models['Ridge Regression'] = ridge
-    results.append(metrics_ridge)
-    print(f"   RMSE: {metrics_ridge['RMSE']}, MAE: {metrics_ridge['MAE']}, R²: {metrics_ridge['R2']}")
-    
-    # 3. Lasso Regression
-    print("\n3️⃣  Training Lasso Regression...")
-    lasso = Lasso(alpha=0.1, random_state=42)
-    lasso.fit(X_train, y_train)
-    y_pred_lasso = lasso.predict(X_test)
-    metrics_lasso = calculate_metrics(y_test, y_pred_lasso, "Lasso Regression")
-    models['Lasso Regression'] = lasso
-    results.append(metrics_lasso)
-    print(f"   RMSE: {metrics_lasso['RMSE']}, MAE: {metrics_lasso['MAE']}, R²: {metrics_lasso['R2']}")
-    
-    # 4. Decision Tree
-    print("\n4️⃣  Training Decision Tree...")
-    dt = DecisionTreeRegressor(max_depth=10, random_state=42)
-    dt.fit(X_train, y_train)
-    y_pred_dt = dt.predict(X_test)
-    metrics_dt = calculate_metrics(y_test, y_pred_dt, "Decision Tree")
-    models['Decision Tree'] = dt
-    results.append(metrics_dt)
-    print(f"   RMSE: {metrics_dt['RMSE']}, MAE: {metrics_dt['MAE']}, R²: {metrics_dt['R2']}")
-    
-    # 5. Random Forest
-    print("\n5️⃣  Training Random Forest...")
-    rf = RandomForestRegressor(n_estimators=100, max_depth=15, random_state=42, n_jobs=-1)
+    # 1. Random Forest
+    print("1️⃣  Training Random Forest...")
+    print("   Ensemble of 100 decision trees")
+    rf = RandomForestRegressor(
+        n_estimators=100,
+        max_depth=15,
+        min_samples_split=5,
+        min_samples_leaf=2,
+        random_state=42,
+        n_jobs=-1
+    )
     rf.fit(X_train, y_train)
     y_pred_rf = rf.predict(X_test)
     metrics_rf = calculate_metrics(y_test, y_pred_rf, "Random Forest")
     models['Random Forest'] = rf
     results.append(metrics_rf)
-    print(f"   RMSE: {metrics_rf['RMSE']}, MAE: {metrics_rf['MAE']}, R²: {metrics_rf['R2']}")
+    print(f"   ✓ RMSE: {metrics_rf['RMSE']}, MAE: {metrics_rf['MAE']}, R²: {metrics_rf['R2']}")
     
-    # 6. Gradient Boosting
-    print("\n6️⃣  Training Gradient Boosting...")
-    gb = GradientBoostingRegressor(n_estimators=100, max_depth=5, random_state=42)
-    gb.fit(X_train, y_train)
-    y_pred_gb = gb.predict(X_test)
-    metrics_gb = calculate_metrics(y_test, y_pred_gb, "Gradient Boosting")
-    models['Gradient Boosting'] = gb
-    results.append(metrics_gb)
-    print(f"   RMSE: {metrics_gb['RMSE']}, MAE: {metrics_gb['MAE']}, R²: {metrics_gb['R2']}")
-    
-    # 7. XGBoost (if available)
+    # 2. XGBoost
     if XGBOOST_AVAILABLE:
-        print("\n7️⃣  Training XGBoost...")
+        print("\n2️⃣  Training XGBoost...")
+        print("   Optimized gradient boosting")
         xgb_model = xgb.XGBRegressor(
             n_estimators=100,
-            max_depth=5,
+            max_depth=6,
             learning_rate=0.1,
+            subsample=0.8,
+            colsample_bytree=0.8,
             random_state=42,
             n_jobs=-1
         )
@@ -292,15 +256,21 @@ def train_models(X_train, X_test, y_train, y_test):
         metrics_xgb = calculate_metrics(y_test, y_pred_xgb, "XGBoost")
         models['XGBoost'] = xgb_model
         results.append(metrics_xgb)
-        print(f"   RMSE: {metrics_xgb['RMSE']}, MAE: {metrics_xgb['MAE']}, R²: {metrics_xgb['R2']}")
+        print(f"   ✓ RMSE: {metrics_xgb['RMSE']}, MAE: {metrics_xgb['MAE']}, R²: {metrics_xgb['R2']}")
+    else:
+        print("\n2️⃣  XGBoost not available - skipping")
     
-    # 8. LightGBM (if available)
+    # 3. LightGBM
     if LIGHTGBM_AVAILABLE:
-        print("\n8️⃣  Training LightGBM...")
+        print("\n3️⃣  Training LightGBM...")
+        print("   Fast gradient boosting framework")
         lgb_model = lgb.LGBMRegressor(
             n_estimators=100,
-            max_depth=5,
+            max_depth=6,
             learning_rate=0.1,
+            num_leaves=31,
+            subsample=0.8,
+            colsample_bytree=0.8,
             random_state=42,
             n_jobs=-1,
             verbose=-1
@@ -310,10 +280,12 @@ def train_models(X_train, X_test, y_train, y_test):
         metrics_lgb = calculate_metrics(y_test, y_pred_lgb, "LightGBM")
         models['LightGBM'] = lgb_model
         results.append(metrics_lgb)
-        print(f"   RMSE: {metrics_lgb['RMSE']}, MAE: {metrics_lgb['MAE']}, R²: {metrics_lgb['R2']}")
+        print(f"   ✓ RMSE: {metrics_lgb['RMSE']}, MAE: {metrics_lgb['MAE']}, R²: {metrics_lgb['R2']}")
+    else:
+        print("\n3️⃣  LightGBM not available - skipping")
     
     print("\n" + "="*60)
-    print("✅ ALL MODELS TRAINED")
+    print(f"✅ TRAINED {len(models)} MODELS")
     print("="*60)
     
     return models, results
