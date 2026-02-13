@@ -12,18 +12,19 @@ on:
 jobs:
   train-model:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
       
       - name: Cache pip dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
@@ -57,7 +58,7 @@ jobs:
           if len(real_data) < 50:
               print('⚠️  Not enough real data yet. Skipping training.')
               print(f'   Need at least 50 records, have {len(real_data)}')
-              sys.exit(0)  # Exit successfully but don't train
+              sys.exit(0)
           else:
               print(f'✓ Sufficient data for training ({len(real_data)} records)')
           "
@@ -73,7 +74,7 @@ jobs:
       
       - name: Upload model artifacts
         if: success()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: trained-models
           path: training_pipeline/models/
@@ -81,7 +82,7 @@ jobs:
       
       - name: Upload plots
         if: success()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: training-plots
           path: training_pipeline/plots/
