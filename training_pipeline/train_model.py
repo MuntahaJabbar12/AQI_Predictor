@@ -1,10 +1,12 @@
 """
-Training Pipeline - Main Script
-================================
+Training Pipeline - Main Script (UPDATED for 3-Month Data)
+============================================================
 This script trains ML models to predict AQI.
 
+UPDATED: Now uses combined historical + real-time data if available!
+
 Steps:
-1. Load features from Hopsworks
+1. Load features (combined CSV or Hopsworks)
 2. Prepare data for training
 3. Train multiple models
 4. Evaluate and compare
@@ -85,7 +87,9 @@ def calculate_metrics(y_true, y_pred, model_name="Model"):
 
 def load_and_prepare_data(project):
     """
-    Load data from Hopsworks and prepare for training.
+    Load data from combined CSV (if available) or Hopsworks.
+    
+    UPDATED: Checks for combined_aqi_data.csv first!
     
     Args:
         project: Hopsworks project object
@@ -97,16 +101,61 @@ def load_and_prepare_data(project):
     print("📊 LOADING AND PREPARING DATA")
     print("="*60 + "\n")
     
-    # Load features from Hopsworks
-    print("Step 1/5: Loading features from Hopsworks...")
-    df = get_features_for_training(project, feature_group_name="aqi_features", version=1)
+    # UPDATED: Check for combined data first
+    combined_files = [
+        '../combined_aqi_data.csv',
+        'combined_aqi_data.csv',
+        os.path.join(os.path.dirname(__file__), '..', 'combined_aqi_data.csv')
+    ]
+    
+    df = None
+    data_source = None
+    
+    # Try loading combined data
+    for filepath in combined_files:
+        if os.path.exists(filepath):
+            print(f"Step 1/5: Loading combined data from {os.path.basename(filepath)}...")
+            try:
+                df = pd.read_csv(filepath)
+                # FIXED: Use ISO8601 format for timestamp parsing
+                df['timestamp'] = pd.to_datetime(df['timestamp'], format='ISO8601')
+                data_source = "Combined (Historical + Real-time)"
+                print(f"✓ Found and loaded combined dataset!")
+                break
+            except Exception as e:
+                print(f"⚠️  Error loading {filepath}: {str(e)}")
+                continue
+    
+    # Fallback to Hopsworks if combined data not found
+    if df is None:
+        print("Step 1/5: Loading features from Hopsworks...")
+        print("   (No combined_aqi_data.csv found - using real-time data only)")
+        df = get_features_for_training(project, feature_group_name="aqi_features", version=1)
+        data_source = "Real-time only (Hopsworks)"
     
     if df is None or len(df) == 0:
-        print("✗ No data available in feature store!")
-        return None, None, None, None, None, None
+        print("✗ No data available!")
+        return None, None, None, None, None, None, None, None
+    
+    # Ensure timestamp is datetime (FIXED: with ISO8601 format)
+    if not pd.api.types.is_datetime64_any_dtype(df['timestamp']):
+        df['timestamp'] = pd.to_datetime(df['timestamp'], format='ISO8601')
+    
+    # Calculate duration
+    duration_days = (df['timestamp'].max() - df['timestamp'].min()).days
     
     print(f"✓ Loaded {len(df)} records")
+    print(f"  Data source: {data_source}")
     print(f"  Date range: {df['timestamp'].min()} to {df['timestamp'].max()}")
+    print(f"  Duration: {duration_days} days")
+    
+    # Check if meets 3-month requirement
+    if duration_days >= 90:
+        print(f"  ✅ ✅ ✅ MEETS 3-MONTH REQUIREMENT! ({duration_days} days) ✅ ✅ ✅")
+    elif duration_days >= 30:
+        print(f"  ⚠️  {duration_days} days (target: 90+ days for best results)")
+    else:
+        print(f"  ⚠️  Only {duration_days} days - more data recommended")
     
     # Remove records with placeholder pollution data (aqi = 0)
     print("\nStep 2/5: Cleaning data...")
@@ -195,7 +244,8 @@ def load_and_prepare_data(project):
     print("✅ DATA PREPARATION COMPLETE")
     print("="*60)
     
-    return X_train_scaled, X_test_scaled, y_train, y_test, scaler, available_features
+    # Return data source info as extra parameter
+    return X_train_scaled, X_test_scaled, y_train, y_test, scaler, available_features, data_source, duration_days
 
 
 def train_models(X_train, X_test, y_train, y_test):
@@ -321,15 +371,19 @@ def print_results_table(results):
     return best_model
 
 
-def save_models(models, scaler, feature_names, project):
+def save_models(models, scaler, feature_names, project, data_source, duration_days):
     """
     Save best model and scaler locally and to Hopsworks.
+    
+    UPDATED: Saves metadata about data source and duration
     
     Args:
         models: Dictionary of trained models
         scaler: Fitted scaler
         feature_names: List of feature names
         project: Hopsworks project
+        data_source: Description of data source
+        duration_days: Number of days of data
     """
     print("\n" + "="*60)
     print("💾 SAVING MODELS")
@@ -352,6 +406,21 @@ def save_models(models, scaler, feature_names, project):
     joblib.dump(feature_names, 'models/feature_names.pkl')
     print(f"✓ Saved feature names to models/feature_names.pkl")
     
+    # UPDATED: Save metadata with data source info
+    metadata = {
+        'training_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'data_source': data_source,
+        'duration_days': duration_days,
+        'meets_3_month_requirement': duration_days >= 90,
+        'num_features': len(feature_names),
+        'feature_names': feature_names
+    }
+    
+    import json
+    with open('models/metadata.json', 'w') as f:
+        json.dump(metadata, f, indent=2)
+    print(f"✓ Saved metadata to models/metadata.json")
+    
     print("\n✅ All models saved locally in 'models/' directory")
 
 
@@ -370,13 +439,13 @@ def run_training_pipeline():
         print("✗ Cannot proceed without Hopsworks connection")
         return False
     
-    # Load and prepare data
+    # Load and prepare data (UPDATED to return data_source and duration)
     result = load_and_prepare_data(project)
     if result[0] is None:
         print("✗ Cannot proceed without data")
         return False
     
-    X_train, X_test, y_train, y_test, scaler, feature_names = result
+    X_train, X_test, y_train, y_test, scaler, feature_names, data_source, duration_days = result
     
     # Train models
     models, results = train_models(X_train, X_test, y_train, y_test)
@@ -384,14 +453,18 @@ def run_training_pipeline():
     # Print comparison table
     best_model_name = print_results_table(results)
     
-    # Save models
-    save_models(models, scaler, feature_names, project)
+    # Save models (UPDATED to include data source info)
+    save_models(models, scaler, feature_names, project, data_source, duration_days)
     
     print("\n" + "="*70)
     print("✅ TRAINING PIPELINE COMPLETED SUCCESSFULLY!")
     print("="*70 + "\n")
     
     print("📝 Summary:")
+    print(f"  • Data source: {data_source}")
+    print(f"  • Data duration: {duration_days} days")
+    if duration_days >= 90:
+        print(f"  • ✅ Meets 3-month requirement!")
     print(f"  • Trained {len(models)} models")
     print(f"  • Best model: {best_model_name}")
     print(f"  • Models saved to: models/")
