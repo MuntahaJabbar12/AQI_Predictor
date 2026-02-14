@@ -79,7 +79,7 @@ def get_aqi_color_and_label(aqi):
     if aqi <= 50:
         return "#00e400", "Good", "🟢"
     elif aqi <= 100:
-        return "#ffff00", "Moderate", "🟡"
+        return "#a15bd7", "Moderate", "🟡"
     elif aqi <= 150:
         return "#ff7e00", "Unhealthy for Sensitive Groups", "🟠"
     elif aqi <= 200:
