@@ -135,37 +135,67 @@ def get_features_for_training(project, feature_group_name: str = "aqi_features",
 
 def upload_model_to_registry(project, model, model_name: str = "aqi_predictor",
                               metrics: Dict = None, description: str = ""):
-    """Upload model to registry."""
+    """
+    Upload trained model to Hopsworks Model Registry.
+    
+    Args:
+        project: Hopsworks project object
+        model: Trained model object
+        model_name: Name for the model
+        metrics: Dictionary of evaluation metrics
+        description: Model description
+    
+    Returns:
+        Model version number or None if error
+    """
     try:
-        import joblib
-        from hsml.schema import Schema
-        from hsml.model_schema import ModelSchema
+        import joblib  # ← ADDED IMPORT!
+        import shutil
         
+        print(f"  Preparing model for upload...")
+        
+        # Get model registry
         mr = project.get_model_registry()
         
-        model_dir = "model_files"
+        # Create model directory
+        model_dir = "model_registry_temp"
         os.makedirs(model_dir, exist_ok=True)
-        model_path = f"{model_dir}/{model_name}.pkl"
         
+        # Save model locally first
+        model_path = os.path.join(model_dir, f"{model_name}.pkl")
         joblib.dump(model, model_path)
+        print(f"  ✓ Model saved to temporary directory")
         
-        input_schema = Schema([])
-        output_schema = Schema([])
-        model_schema = ModelSchema(input_schema=input_schema, output_schema=output_schema)
+        # Create model in registry
+        print(f"  Creating model entry in Hopsworks...")
         
         aqi_model = mr.python.create_model(
             name=model_name,
             metrics=metrics or {},
-            description=description,
-            model_schema=model_schema
+            description=description or "AQI Prediction Model"
         )
         
+        print(f"  ✓ Model entry created")
+        print(f"  Uploading model files...")
+        
+        # Upload model files
         aqi_model.save(model_dir)
-        print(f"✓ Model uploaded: {model_name}")
-        return aqi_model
+        
+        print(f"  ✓ Model uploaded successfully!")
+        
+        # Clean up temp directory
+        shutil.rmtree(model_dir)
+        
+        # Get version
+        version = aqi_model.version
+        print(f"  ✓ Model version: {version}")
+        
+        return version
         
     except Exception as e:
-        print(f"✗ Error uploading model: {str(e)}")
+        print(f"  ✗ Error uploading model: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return None
 
 

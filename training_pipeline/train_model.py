@@ -1,7 +1,7 @@
 """
-Training Pipeline - Main Script (FINAL VERSION)
-================================================
-Trains ML models with 3-month data and saves best model info
+Training Pipeline - WITH HOPSWORKS MODEL REGISTRY
+==================================================
+Trains models AND uploads best model to Hopsworks Registry!
 
 Developed by Muntaha Jabbar • 2026
 """
@@ -15,7 +15,6 @@ import joblib
 import warnings
 warnings.filterwarnings('ignore')
 
-# Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from feature_pipeline.hopsworks_utils import (
@@ -25,13 +24,11 @@ from feature_pipeline.hopsworks_utils import (
 )
 from feature_pipeline.feature_engineering import prepare_features_for_training
 
-# ML Libraries
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.ensemble import RandomForestRegressor
 
-# Advanced models
 try:
     import xgboost as xgb
     XGBOOST_AVAILABLE = True
@@ -69,7 +66,6 @@ def load_and_prepare_data(project):
     print("📊 LOADING AND PREPARING DATA")
     print("="*60 + "\n")
     
-    # Check for combined data first
     combined_files = [
         '../combined_aqi_data.csv',
         'combined_aqi_data.csv',
@@ -79,7 +75,6 @@ def load_and_prepare_data(project):
     df = None
     data_source = None
     
-    # Try loading combined data
     for filepath in combined_files:
         if os.path.exists(filepath):
             print(f"Step 1/5: Loading combined data from {os.path.basename(filepath)}...")
@@ -93,7 +88,6 @@ def load_and_prepare_data(project):
                 print(f"⚠️  Error loading {filepath}: {str(e)}")
                 continue
     
-    # Fallback to Hopsworks
     if df is None:
         print("Step 1/5: Loading features from Hopsworks...")
         print("   (No combined_aqi_data.csv found - using real-time data only)")
@@ -104,11 +98,9 @@ def load_and_prepare_data(project):
         print("✗ No data available!")
         return None, None, None, None, None, None, None, None
     
-    # Ensure timestamp is datetime
     if not pd.api.types.is_datetime64_any_dtype(df['timestamp']):
         df['timestamp'] = pd.to_datetime(df['timestamp'], format='ISO8601')
     
-    # Calculate duration
     duration_days = (df['timestamp'].max() - df['timestamp'].min()).days
     
     print(f"✓ Loaded {len(df)} records")
@@ -123,7 +115,6 @@ def load_and_prepare_data(project):
     else:
         print(f"  ⚠️  Only {duration_days} days - more data recommended")
     
-    # Clean data
     print("\nStep 2/5: Cleaning data...")
     df_clean = df[df['aqi'] > 0].copy()
     print(f"✓ Kept {len(df_clean)} records with real AQI data")
@@ -135,12 +126,10 @@ def load_and_prepare_data(project):
     
     df_clean = df_clean.sort_values('timestamp').reset_index(drop=True)
     
-    # Feature engineering
     print("\nStep 3/5: Engineering features...")
     df_features = prepare_features_for_training(df_clean)
     print(f"✓ Created {len(df_features.columns)} total columns")
     
-    # Define features
     feature_cols = [
         'temperature', 'humidity', 'pressure', 'wind_speed',
         'pm2_5', 'pm10', 'co', 'no2', 'so2', 'o3',
@@ -167,7 +156,6 @@ def load_and_prepare_data(project):
     print(f"  Target (y): {y.shape}")
     print(f"  AQI range: {y.min():.1f} to {y.max():.1f}")
     
-    # Split
     print("\nStep 4/5: Splitting data...")
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, shuffle=False
@@ -175,7 +163,6 @@ def load_and_prepare_data(project):
     print(f"✓ Train set: {len(X_train)} samples")
     print(f"✓ Test set: {len(X_test)} samples")
     
-    # Scale
     print("\nStep 5/5: Scaling features...")
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
@@ -198,7 +185,6 @@ def train_models(X_train, X_test, y_train, y_test):
     models = {}
     results = []
     
-    # Random Forest
     print("1️⃣  Training Random Forest...")
     rf = RandomForestRegressor(
         n_estimators=100, max_depth=15, min_samples_split=5,
@@ -211,7 +197,6 @@ def train_models(X_train, X_test, y_train, y_test):
     results.append(metrics_rf)
     print(f"   ✓ RMSE: {metrics_rf['RMSE']}, MAE: {metrics_rf['MAE']}, R²: {metrics_rf['R2']}")
     
-    # XGBoost
     if XGBOOST_AVAILABLE:
         print("\n2️⃣  Training XGBoost...")
         xgb_model = xgb.XGBRegressor(
@@ -225,7 +210,6 @@ def train_models(X_train, X_test, y_train, y_test):
         results.append(metrics_xgb)
         print(f"   ✓ RMSE: {metrics_xgb['RMSE']}, MAE: {metrics_xgb['MAE']}, R²: {metrics_xgb['R2']}")
     
-    # LightGBM
     if LIGHTGBM_AVAILABLE:
         print("\n3️⃣  Training LightGBM...")
         lgb_model = lgb.LGBMRegressor(
@@ -270,14 +254,14 @@ def print_results_table(results):
 
 
 def save_models(models, scaler, feature_names, project, data_source, duration_days, best_model_name, best_metrics):
-    """Save models with metadata including best model info."""
+    """Save models locally AND upload best to Hopsworks Registry."""
     print("\n" + "="*60)
     print("💾 SAVING MODELS")
     print("="*60 + "\n")
     
     os.makedirs('models', exist_ok=True)
     
-    # Save all models
+    # Save all models locally
     for name, model in models.items():
         filename = f"models/{name.lower()}.pkl"
         joblib.dump(model, filename)
@@ -289,7 +273,7 @@ def save_models(models, scaler, feature_names, project, data_source, duration_da
     joblib.dump(feature_names, 'models/feature_names.pkl')
     print(f"✓ Saved feature names to models/feature_names.pkl")
     
-    # Save metadata with best model info
+    # Save metadata
     metadata = {
         'training_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'data_source': data_source,
@@ -309,12 +293,64 @@ def save_models(models, scaler, feature_names, project, data_source, duration_da
     print(f"✓ Saved metadata to models/metadata.json")
     
     print("\n✅ All models saved locally in 'models/' directory")
+    
+    # ========== UPLOAD BEST MODEL TO HOPSWORKS REGISTRY ==========
+    print("\n" + "="*60)
+    print("☁️  UPLOADING BEST MODEL TO HOPSWORKS MODEL REGISTRY")
+    print("="*60 + "\n")
+    
+    try:
+        best_model = models.get(best_model_name)
+        
+        if best_model:
+            # Prepare metrics for registry (ONLY NUMERIC VALUES!)
+            registry_metrics = {
+                'rmse': float(best_metrics['RMSE']),
+                'mae': float(best_metrics['MAE']),
+                'r2_score': float(best_metrics['R2']),
+                'mape': float(best_metrics['MAPE']),
+                'training_days': int(duration_days)
+            }
+            
+            # Description (can include strings)
+            description = f"AQI Predictor - {best_model_name} model. Trained on {duration_days} days of {data_source}. Accuracy: R²={best_metrics['R2']:.4f}, RMSE={best_metrics['RMSE']:.4f}"
+            
+            print(f"📤 Uploading {best_model_name} to Hopsworks...")
+            print(f"   Metrics: RMSE={best_metrics['RMSE']}, R²={best_metrics['R2']}")
+            
+            # Upload to registry
+            model_version = upload_model_to_registry(
+                project=project,
+                model=best_model,
+                model_name="aqi_predictor_best",
+                metrics=registry_metrics,
+                description=description
+            )
+            
+            if model_version:
+                print(f"\n✅ MODEL UPLOADED TO HOPSWORKS REGISTRY!")
+                print(f"   Name: aqi_predictor_best")
+                print(f"   Algorithm: {best_model_name}")
+                print(f"   Version: {model_version}")
+                print(f"   RMSE: {best_metrics['RMSE']}")
+                print(f"   R²: {best_metrics['R2']}")
+                print(f"   Access: Hopsworks → Model Registry → aqi_predictor_best")
+            else:
+                print(f"\n⚠️  Model upload failed, but local models are saved")
+        else:
+            print(f"⚠️  Best model '{best_model_name}' not found in trained models")
+    
+    except Exception as e:
+        print(f"\n⚠️  Error uploading to registry: {str(e)}")
+        print(f"   Local models are safe in 'models/' directory")
+        import traceback
+        traceback.print_exc()
 
 
 def run_training_pipeline():
-    """Run complete training pipeline."""
+    """Run complete training pipeline WITH registry upload."""
     print("\n" + "="*70)
-    print("🚀 TRAINING PIPELINE STARTED")
+    print("🚀 TRAINING PIPELINE STARTED (WITH MODEL REGISTRY)")
     print(f"⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*70)
     
@@ -348,12 +384,13 @@ def run_training_pipeline():
     print(f"  • Trained {len(models)} models")
     print(f"  • Best model: {best_model_name}")
     print(f"  • Best RMSE: {best_metrics['RMSE']}")
-    print(f"  • Models saved to: models/")
+    print(f"  • Local: models/ directory")
+    print(f"  • Cloud: Hopsworks Model Registry")
     
     print("\n💡 Next steps:")
-    print("  1. Deploy dashboard with updated models")
-    print("  2. Models will automatically use best performer")
-    print("  3. Dashboard will show 3-month data badge")
+    print("  1. Check Hopsworks UI → Model Registry → aqi_predictor_best")
+    print("  2. Deploy dashboard (loads from local or registry)")
+    print("  3. Dashboard shows best model automatically")
     
     return True
 
