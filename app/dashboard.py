@@ -68,29 +68,42 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-def get_aqi_info(aqi):
-    if aqi <= 1.5:
-        return "Good", "🟢", "#00e400", "Air quality is satisfactory. Enjoy outdoor activities!"
-    elif aqi <= 2.5:
-        return "Moderate", "🟡", "#ffff00", "Acceptable air quality. Sensitive people should limit prolonged outdoor exertion."
-    elif aqi <= 3.5:
-        return "Unhealthy for Sensitive Groups", "🟠", "#ff7e00", "Sensitive groups may experience health effects. General public is less likely to be affected."
-    elif aqi <= 4.5:
-        return "Unhealthy", "🔴", "#ff0000", "Everyone may experience health effects. Sensitive groups should avoid outdoor activities."
-    elif aqi <= 5.0:
-        return "Very Unhealthy", "🟣", "#8f3f97", "Health alert! Everyone should avoid prolonged outdoor exertion."
+def convert_to_epa(aqi_raw):
+    """Convert OpenWeather 1-5 AQI to EPA 0-500 scale."""
+    mapping = {1: 25, 2: 75, 3: 125, 4: 175, 5: 250}
+    base = mapping.get(int(aqi_raw), 125)
+    fraction = aqi_raw - int(aqi_raw)
+    if int(aqi_raw) < 5:
+        next_val = mapping.get(int(aqi_raw) + 1, 300)
+        return round(base + fraction * (next_val - base), 1)
+    return round(base + fraction * 50, 1)
+
+
+def get_aqi_info(aqi_raw):
+    """Get AQI category based on EPA scale."""
+    epa = convert_to_epa(aqi_raw) if aqi_raw <= 5 else aqi_raw
+    if epa <= 50:
+        return "Good", "🟢", "#00e400", "Air quality is satisfactory. Enjoy outdoor activities!", epa
+    elif epa <= 100:
+        return "Moderate", "🟡", "#ffff00", "Acceptable air quality. Sensitive people should limit prolonged outdoor exertion.", epa
+    elif epa <= 150:
+        return "Unhealthy for Sensitive Groups", "🟠", "#ff7e00", "Sensitive groups may experience health effects.", epa
+    elif epa <= 200:
+        return "Unhealthy", "🔴", "#ff0000", "Everyone may experience health effects. Sensitive groups should avoid outdoor activities.", epa
+    elif epa <= 300:
+        return "Very Unhealthy", "🟣", "#8f3f97", "Health alert! Everyone should avoid prolonged outdoor exertion.", epa
     else:
-        return "Hazardous", "🟤", "#7e0023", "EMERGENCY: Health warning! Everyone must stay indoors immediately!"
+        return "Hazardous", "🟤", "#7e0023", "EMERGENCY: Health warning! Everyone must stay indoors immediately!", epa
 
 
-def show_aqi_alert(aqi):
-    category, emoji, color, msg = get_aqi_info(aqi)
-    if aqi > 5.0:
-        st.markdown(f'<div class="alert-hazardous">🚨 HAZARDOUS AIR QUALITY ALERT! AQI: {aqi:.1f} - {msg}</div>', unsafe_allow_html=True)
-    elif aqi > 4.5:
-        st.markdown(f'<div class="alert-unhealthy">⚠️ UNHEALTHY AIR QUALITY! AQI: {aqi:.1f} - {msg}</div>', unsafe_allow_html=True)
-    elif aqi > 3.5:
-        st.markdown(f'<div class="alert-moderate">⚠️ Air Quality Advisory: {msg}</div>', unsafe_allow_html=True)
+def show_aqi_alert(aqi_raw):
+    category, emoji, color, msg, epa = get_aqi_info(aqi_raw)
+    if epa > 300:
+        st.markdown(f'<div class="alert-hazardous">🚨 HAZARDOUS AIR QUALITY! EPA AQI: {epa:.0f} - {msg}</div>', unsafe_allow_html=True)
+    elif epa > 200:
+        st.markdown(f'<div class="alert-unhealthy">⚠️ VERY UNHEALTHY AIR! EPA AQI: {epa:.0f} - {msg}</div>', unsafe_allow_html=True)
+    elif epa > 150:
+        st.markdown(f'<div class="alert-moderate">⚠️ Unhealthy for Sensitive Groups. EPA AQI: {epa:.0f}</div>', unsafe_allow_html=True)
 
 
 @st.cache_data(ttl=600)
@@ -363,7 +376,7 @@ if df is None or len(df) == 0:
 
 current_aqi = float(df['aqi'].iloc[-1])
 current_time = df['timestamp'].iloc[-1]
-category, emoji, color, health_msg = get_aqi_info(current_aqi)
+category, emoji, color, health_msg, epa_aqi = get_aqi_info(current_aqi)
 
 show_aqi_alert(current_aqi)
 
@@ -372,7 +385,7 @@ col1, col2, col3 = st.columns([2, 1, 1])
 
 with col1:
     st.markdown(f"### {emoji} {category}")
-    st.markdown(f"**AQI Index: {current_aqi:.1f}**")
+    st.markdown(f"**EPA AQI: {epa_aqi:.0f}** *(OpenWeather Index: {current_aqi:.1f}/5)*")
     st.info(f"💡 {health_msg}")
     st.caption(f"Last updated: {current_time.strftime('%Y-%m-%d %H:%M')}")
 
@@ -396,23 +409,24 @@ c1, c2, c3, c4 = st.columns(4)
 
 with c1:
     avg_24h = df.tail(24)['aqi'].mean()
-    cat, emj, _, _ = get_aqi_info(avg_24h)
-    st.metric("24h Average", f"{avg_24h:.2f}", f"{emj} {cat}")
+    cat, emj, _, _, epa = get_aqi_info(avg_24h)
+    st.metric("24h Average (EPA)", f"{epa:.0f}", f"{emj} {cat}")
 
 with c2:
     max_24h = df.tail(24)['aqi'].max()
-    cat, emj, _, _ = get_aqi_info(max_24h)
-    st.metric("24h Peak", f"{max_24h:.2f}", f"{emj} {cat}")
+    cat, emj, _, _, epa = get_aqi_info(max_24h)
+    st.metric("24h Peak (EPA)", f"{epa:.0f}", f"{emj} {cat}")
 
 with c3:
     avg_7d = df.tail(168)['aqi'].mean()
-    cat, emj, _, _ = get_aqi_info(avg_7d)
-    st.metric("7-Day Average", f"{avg_7d:.2f}", f"{emj} {cat}")
+    cat, emj, _, _, epa = get_aqi_info(avg_7d)
+    st.metric("7-Day Average (EPA)", f"{epa:.0f}", f"{emj} {cat}")
 
 with c4:
     change = float(df['aqi'].iloc[-1]) - float(df['aqi'].iloc[-24]) if len(df) >= 24 else 0
+    epa_change = change * 50
     direction = "📈 Rising" if change > 0.1 else "📉 Falling" if change < -0.1 else "➡️ Stable"
-    st.metric("24h Trend", direction, f"{change:+.2f}")
+    st.metric("24h Trend", direction, f"{epa_change:+.0f} EPA pts")
 
 st.markdown("---")
 
@@ -478,17 +492,17 @@ with tab1:
     display = forecast_df.copy()
     display['Date'] = display['timestamp'].dt.strftime('%Y-%m-%d')
     display['Time'] = display['timestamp'].dt.strftime('%H:%M')
-    display['AQI'] = display['aqi'].round(2)
+    display['EPA AQI'] = display['aqi'].apply(lambda x: convert_to_epa(x))
     display['Status'] = display['emoji'] + ' ' + display['category']
     display['Health Advisory'] = display['health_message']
 
     st.dataframe(
-        display[['Date', 'Time', 'AQI', 'Status', 'Health Advisory']],
+        display[['Date', 'Time', 'EPA AQI', 'Status', 'Health Advisory']],
         use_container_width=True,
         hide_index=True
     )
 
-    csv_data = display[['Date', 'Time', 'AQI', 'Status', 'Health Advisory']].to_csv(index=False)
+    csv_data = display[['Date', 'Time', 'EPA AQI', 'Status', 'Health Advisory']].to_csv(index=False)
     st.download_button(
         "📥 Download 72-Hour Forecast CSV",
         data=csv_data,
