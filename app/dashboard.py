@@ -219,7 +219,7 @@ def generate_forecast(df, model, scaler, feature_names, hours=72):
             pred = last_aqi + daily + np.random.normal(0, 0.05)
 
         pred = float(np.clip(pred, 1.0, 5.0))
-        category, emoji, color, health = get_aqi_info(pred)
+        category, emoji, color, health, epa = get_aqi_info(pred)
         forecasts.append({
             'timestamp': ts,
             'aqi': round(pred, 2),
@@ -451,7 +451,7 @@ with tab1:
             'timestamp': timestamps,
             'aqi': aqi_vals,
         })
-        forecast_df[['category', 'emoji', 'color', 'health_message']] = forecast_df['aqi'].apply(
+        forecast_df[['category', 'emoji', 'color', 'health_message', 'epa']] = forecast_df['aqi'].apply(
             lambda x: pd.Series(get_aqi_info(x))
         )
 
