@@ -1,0 +1,2 @@
+city,timestamp,temperature,humidity,pressure,wind_speed,pm2_5,pm10,co,no2,so2,o3,aqi,hour,day_of_week,day,month,is_weekend,is_rush_hour,pm_ratio,temp_humidity_interaction
+Karachi,2026-02-01 16:04:03+00:00,24.2,64,1016.7,16.9,44.3,94.6,273.21,0.6,6.27,133.64,3,16,6,1,2,1,0,0.4682875264270613,1548.8
