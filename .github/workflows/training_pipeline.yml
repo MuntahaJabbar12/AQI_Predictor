@@ -1,95 +1,65 @@
-name: Daily Model Training
+name: Daily Training Pipeline
 
-# Run daily at 2 AM UTC to retrain models with fresh data
 on:
   schedule:
-    # Runs at 2 AM UTC every day (0 2 * * *)
     - cron: '0 2 * * *'
-  
-  # Allow manual trigger
   workflow_dispatch:
 
 jobs:
   train-model:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      
+
       - name: Cache pip dependencies
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          key: ${{ runner.os }}-pip-train-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
-            ${{ runner.os }}-pip-
-      
+            ${{ runner.os }}-pip-train-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      
-      - name: Check data availability
-        env:
-          HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
-          HOPSWORKS_PROJECT_NAME: ${{ secrets.HOPSWORKS_PROJECT_NAME }}
-        run: |
-          cd training_pipeline
-          python -c "
-          import sys
-          import os
-          sys.path.append('..')
-          from feature_pipeline.hopsworks_utils import connect_to_hopsworks, get_features_for_training
-          
-          project = connect_to_hopsworks()
-          df = get_features_for_training(project)
-          
-          real_data = df[df['aqi'] > 0]
-          print(f'Total records: {len(df)}')
-          print(f'Real AQI records: {len(real_data)}')
-          
-          if len(real_data) < 50:
-              print('⚠️  Not enough real data yet. Skipping training.')
-              print(f'   Need at least 50 records, have {len(real_data)}')
-              sys.exit(0)
-          else:
-              print(f'✓ Sufficient data for training ({len(real_data)} records)')
-          "
-      
-      - name: Train Models
-        if: success()
+          pip install requests pandas numpy pytz python-dateutil scikit-learn
+          pip install xgboost lightgbm joblib
+          pip install "hopsworks[python]==4.2.*" pyarrow
+          pip install -r requirements.txt || true
+
+      - name: Run Training Pipeline
         env:
           HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
           HOPSWORKS_PROJECT_NAME: ${{ secrets.HOPSWORKS_PROJECT_NAME }}
         run: |
           cd training_pipeline
           python train_model.py
-      
-      - name: Upload model artifacts
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: trained-models
-          path: training_pipeline/models/
-          retention-days: 30
-      
-      - name: Upload plots
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: training-plots
-          path: training_pipeline/plots/
-          retention-days: 30
-      
-      - name: Notify on failure
-        if: failure()
+
+      - name: Commit updated models
         run: |
-          echo "❌ Model training failed!"
-          echo "Check the logs above for error details"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add training_pipeline/models/
+          git diff --staged --quiet || git commit -m "Auto: Update trained models $(date -u '+%Y-%m-%d') UTC"
+          git push
+        continue-on-error: true
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: training-logs
+          path: training_pipeline/*.log
+          retention-days: 7
