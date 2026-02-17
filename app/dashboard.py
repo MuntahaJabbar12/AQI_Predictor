@@ -103,7 +103,8 @@ def load_data():
     for path in csv_paths:
         if os.path.exists(path):
             df = pd.read_csv(path)
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'], format='mixed', utc=True)
+            df['timestamp'] = df['timestamp'].dt.tz_localize(None)
             df = df[df['aqi'] > 0].sort_values('timestamp').reset_index(drop=True)
             return df
 
