@@ -36,7 +36,6 @@ def backfill_features(days_back: int = 30):
     print(f"📅 Backfilling last {days_back} days")
     print("="*60 + "\n")
     
-    # Calculate date range
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days_back)
     
@@ -45,7 +44,6 @@ def backfill_features(days_back: int = 30):
     
     print(f"Date range: {start_str} to {end_str}\n")
     
-    # Fetch historical weather data
     print("Step 1/3: Fetching historical weather data...")
     weather_data = fetch_historical_weather(LATITUDE, LONGITUDE, start_str, end_str)
     
@@ -53,7 +51,6 @@ def backfill_features(days_back: int = 30):
         print("✗ Failed to fetch historical weather data.")
         return False
     
-    # Convert to DataFrame
     df_weather = pd.DataFrame({
         'timestamp': pd.to_datetime(weather_data['time']),
         'temperature': weather_data['temperature_2m'],
@@ -64,34 +61,28 @@ def backfill_features(days_back: int = 30):
     
     print(f"✓ Fetched {len(df_weather)} hourly weather records")
     
-    # Add time features
     print("\nStep 2/3: Engineering features...")
     
     df_weather['city'] = CITY_NAME
     
-    # Add time-based features
     for idx, row in df_weather.iterrows():
         time_features = create_time_features(row['timestamp'])
         for key, value in time_features.items():
             df_weather.at[idx, key] = value
     
-    # Note about pollution data
     print("\n⚠️  Note about historical pollution data:")
     print("OpenWeather free tier has limited historical pollution data.")
     print("We'll add placeholder values for now and collect real data going forward.")
     print("The model will be trained on real data as it accumulates.\n")
     
-    # Add placeholder pollution data (will be replaced with real data over time)
     pollution_cols = ['pm2_5', 'pm10', 'co', 'no2', 'so2', 'o3', 'aqi']
     for col in pollution_cols:
-        df_weather[col] = 0.0  # Placeholder
+        df_weather[col] = 0.0
     
-    # Try to get at least current pollution data for the most recent hour
     print("Fetching current pollution data for latest timestamp...")
     current_pollution = fetch_pollution_data(LATITUDE, LONGITUDE)
     
     if current_pollution:
-        # Update the most recent row with actual pollution data
         latest_idx = df_weather['timestamp'].idxmax()
         df_weather.at[latest_idx, 'pm2_5'] = current_pollution['pm2_5']
         df_weather.at[latest_idx, 'pm10'] = current_pollution['pm10']
@@ -102,13 +93,11 @@ def backfill_features(days_back: int = 30):
         df_weather.at[latest_idx, 'aqi'] = current_pollution['aqi']
         print(f"✓ Added current pollution data (AQI: {current_pollution['aqi']})")
     
-    # Add derived features
     df_weather['pm_ratio'] = df_weather['pm2_5'] / df_weather['pm10'].replace(0, 1)
     df_weather['temp_humidity_interaction'] = df_weather['temperature'] * df_weather['humidity']
     
     print(f"✓ Created features for {len(df_weather)} records")
     
-    # Connect to Hopsworks
     print("\nStep 3/3: Uploading to Hopsworks...")
     project = connect_to_hopsworks()
     
@@ -116,7 +105,6 @@ def backfill_features(days_back: int = 30):
         print("✗ Failed to connect to Hopsworks.")
         return False
     
-    # Insert features
     success = insert_features(
         project=project,
         df=df_weather,
@@ -159,8 +147,6 @@ def backfill_recent_pollution_only(hours_back: int = 24):
     
     all_data = []
     
-    # This approach won't work well with free tier as OpenWeather
-    # doesn't provide historical pollution data
     print("⚠️  Note: This requires a paid OpenWeather plan for historical data.")
     print("Instead, run the hourly pipeline regularly to build your dataset.\n")
     

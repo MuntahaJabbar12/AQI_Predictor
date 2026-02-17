@@ -261,7 +261,6 @@ def save_models(models, scaler, feature_names, project, data_source, duration_da
     
     os.makedirs('models', exist_ok=True)
     
-    # Save all models locally
     for name, model in models.items():
         filename = f"models/{name.lower()}.pkl"
         joblib.dump(model, filename)
@@ -273,7 +272,6 @@ def save_models(models, scaler, feature_names, project, data_source, duration_da
     joblib.dump(feature_names, 'models/feature_names.pkl')
     print(f"✓ Saved feature names to models/feature_names.pkl")
     
-    # Save metadata
     metadata = {
         'training_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'data_source': data_source,
@@ -294,7 +292,6 @@ def save_models(models, scaler, feature_names, project, data_source, duration_da
     
     print("\n✅ All models saved locally in 'models/' directory")
     
-    # ========== UPLOAD BEST MODEL TO HOPSWORKS REGISTRY ==========
     print("\n" + "="*60)
     print("☁️  UPLOADING BEST MODEL TO HOPSWORKS MODEL REGISTRY")
     print("="*60 + "\n")
@@ -303,7 +300,6 @@ def save_models(models, scaler, feature_names, project, data_source, duration_da
         best_model = models.get(best_model_name)
         
         if best_model:
-            # Prepare metrics for registry (ONLY NUMERIC VALUES!)
             registry_metrics = {
                 'rmse': float(best_metrics['RMSE']),
                 'mae': float(best_metrics['MAE']),
@@ -312,13 +308,11 @@ def save_models(models, scaler, feature_names, project, data_source, duration_da
                 'training_days': int(duration_days)
             }
             
-            # Description (can include strings)
             description = f"AQI Predictor - {best_model_name} model. Trained on {duration_days} days of {data_source}. Accuracy: R²={best_metrics['R2']:.4f}, RMSE={best_metrics['RMSE']:.4f}"
             
             print(f"📤 Uploading {best_model_name} to Hopsworks...")
             print(f"   Metrics: RMSE={best_metrics['RMSE']}, R²={best_metrics['R2']}")
             
-            # Upload to registry
             model_version = upload_model_to_registry(
                 project=project,
                 model=best_model,

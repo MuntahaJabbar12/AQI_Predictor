@@ -29,7 +29,6 @@ def run_feature_pipeline():
     print(f"⏰ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*60 + "\n")
     
-    # Step 1: Fetch raw data from APIs
     print("Step 1/4: Fetching data from APIs...")
     raw_data = fetch_all_current_data()
     
@@ -37,17 +36,14 @@ def run_feature_pipeline():
         print("✗ Failed to fetch data. Pipeline aborted.")
         return False
     
-    # Step 2: Create features
     print("\nStep 2/4: Engineering features...")
     features = create_features_from_raw_data(raw_data)
     
-    # Convert to DataFrame
     df = pd.DataFrame([features])
     
     print(f"✓ Created {len(df.columns)} features")
     print(f"  Columns: {', '.join(df.columns[:10])}...")
     
-    # Step 3: Connect to Hopsworks
     print("\nStep 3/4: Connecting to Hopsworks...")
     project = connect_to_hopsworks()
     
@@ -59,7 +55,6 @@ def run_feature_pipeline():
         print("   3. Set HOPSWORKS_PROJECT_NAME in .env file")
         return False
     
-    # Step 4: Insert features into Hopsworks
     print("\nStep 4/4: Inserting features into feature store...")
     success = insert_features(
         project=project,
@@ -74,7 +69,6 @@ def run_feature_pipeline():
         print("✅ FEATURE PIPELINE COMPLETED SUCCESSFULLY!")
         print("="*60 + "\n")
         
-        # Print summary
         print("Summary:")
         print(f"  • Timestamp: {features['timestamp']}")
         print(f"  • City: {features['city']}")

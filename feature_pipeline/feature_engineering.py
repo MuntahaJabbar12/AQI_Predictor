@@ -27,7 +27,7 @@ def create_time_features(timestamp: datetime) -> Dict:
     """
     return {
         'hour': timestamp.hour,
-        'day_of_week': timestamp.weekday(),  # 0=Monday, 6=Sunday
+        'day_of_week': timestamp.weekday(),
         'day': timestamp.day,
         'month': timestamp.month,
         'is_weekend': 1 if timestamp.weekday() >= 5 else 0,
@@ -63,18 +63,15 @@ def create_features_from_raw_data(raw_data: Dict) -> Dict:
     """
     timestamp = raw_data['timestamp']
     
-    # Start with raw data
     features = {
         'city': raw_data['city'],
         'timestamp': timestamp,
         
-        # Weather features
         'temperature': raw_data['temperature'],
         'humidity': raw_data['humidity'],
         'pressure': raw_data['pressure'],
         'wind_speed': raw_data['wind_speed'],
         
-        # Pollution features
         'pm2_5': raw_data['pm2_5'],
         'pm10': raw_data['pm10'],
         'co': raw_data['co'],
@@ -84,11 +81,9 @@ def create_features_from_raw_data(raw_data: Dict) -> Dict:
         'aqi': raw_data['aqi'],
     }
     
-    # Add time features
     time_features = create_time_features(timestamp)
     features.update(time_features)
     
-    # Add derived features
     features['pm_ratio'] = raw_data['pm2_5'] / raw_data['pm10'] if raw_data['pm10'] > 0 else 0
     features['temp_humidity_interaction'] = raw_data['temperature'] * raw_data['humidity']
     
@@ -148,24 +143,18 @@ def prepare_features_for_training(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         DataFrame with all engineered features
     """
-    # Ensure data is sorted by timestamp
     df = df.sort_values('timestamp').reset_index(drop=True)
     
-    # Features to create lags and rolling for
     pollution_cols = ['pm2_5', 'pm10', 'co', 'no2', 'so2', 'o3', 'aqi']
     weather_cols = ['temperature', 'humidity', 'pressure', 'wind_speed']
     
-    # Create lag features (previous 1, 3, 6, 12, 24 hours)
     df = create_lag_features(df, pollution_cols + weather_cols, lags=[1, 3, 6, 12, 24])
     
-    # Create rolling features (3, 6, 12, 24 hour windows)
     df = create_rolling_features(df, pollution_cols + weather_cols, windows=[3, 6, 12, 24])
     
-    # Create AQI change rate
     df['aqi_change_rate'] = df['aqi'].diff()
     df['aqi_change_rate_pct'] = df['aqi'].pct_change() * 100
     
-    # Fill NaN values in lag and rolling features with forward fill
     df = df.fillna(method='ffill').fillna(method='bfill')
     
     return df
@@ -179,41 +168,32 @@ def get_feature_names_for_training() -> List[str]:
         List of feature names
     """
     base_features = [
-        # Current weather
         'temperature', 'humidity', 'pressure', 'wind_speed',
         
-        # Current pollution
         'pm2_5', 'pm10', 'co', 'no2', 'so2', 'o3',
         
-        # Time features
         'hour', 'day_of_week', 'month', 'is_weekend', 'is_rush_hour',
         
-        # Derived features
         'pm_ratio', 'temp_humidity_interaction'
     ]
     
-    # Add lag features (we'll use 1, 3, 6 hour lags for main pollutants)
     pollution_cols = ['pm2_5', 'pm10', 'aqi']
     for col in pollution_cols:
         for lag in [1, 3, 6]:
             base_features.append(f'{col}_lag_{lag}')
     
-    # Add rolling features (3, 6 hour windows)
     for col in pollution_cols:
         for window in [3, 6]:
             base_features.append(f'{col}_rolling_mean_{window}')
     
-    # Add AQI change rate
     base_features.extend(['aqi_change_rate', 'aqi_change_rate_pct'])
     
     return base_features
 
 
-# Test function
 if __name__ == "__main__":
     print("Testing Feature Engineering Module\n")
     
-    # Create sample data
     sample_timestamp = datetime.now()
     sample_raw = {
         'city': 'Karachi',
@@ -231,7 +211,6 @@ if __name__ == "__main__":
         'aqi': 3
     }
     
-    # Test feature creation
     features = create_features_from_raw_data(sample_raw)
     
     print("Created Features:")

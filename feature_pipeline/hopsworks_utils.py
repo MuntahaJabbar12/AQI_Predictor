@@ -56,17 +56,14 @@ def insert_features(project, df: pd.DataFrame, feature_group_name: str = "aqi_fe
         print(f"⚙ Working with feature group: {feature_group_name}")
         print(f"  Records to insert: {len(df)}")
         
-        # Convert timestamp
         if 'timestamp' in df.columns:
             df['timestamp'] = pd.to_datetime(df['timestamp'])
         
-        # Convert integers
         int_columns = ['aqi', 'hour', 'day_of_week', 'day', 'month', 'is_weekend', 'is_rush_hour']
         for col in int_columns:
             if col in df.columns:
                 df[col] = df[col].fillna(0).astype('int64')
         
-        # Get or create feature group
         fg = None
         try:
             fg = fs.get_feature_group(name=feature_group_name, version=version)
@@ -84,15 +81,14 @@ def insert_features(project, df: pd.DataFrame, feature_group_name: str = "aqi_fe
             )
             print(f"✓ Feature group created")
         
-        # Insert with FIXED settings
         print(f"📤 Inserting {len(df)} records...")
         
         fg.insert(
             df, 
-            overwrite=False,  # ← KEY FIX: Append, don't replace!
+            overwrite=False,
             write_options={
-                "start_offline_materialization": False,  # ← No blocking!
-                "wait_for_job": False  # ← Async processing!
+                "start_offline_materialization": False,
+                "wait_for_job": False
             }
         )
         
@@ -149,24 +145,20 @@ def upload_model_to_registry(project, model, model_name: str = "aqi_predictor",
         Model version number or None if error
     """
     try:
-        import joblib  # ← ADDED IMPORT!
+        import joblib
         import shutil
         
         print(f"  Preparing model for upload...")
         
-        # Get model registry
         mr = project.get_model_registry()
         
-        # Create model directory
         model_dir = "model_registry_temp"
         os.makedirs(model_dir, exist_ok=True)
         
-        # Save model locally first
         model_path = os.path.join(model_dir, f"{model_name}.pkl")
         joblib.dump(model, model_path)
         print(f"  ✓ Model saved to temporary directory")
         
-        # Create model in registry
         print(f"  Creating model entry in Hopsworks...")
         
         aqi_model = mr.python.create_model(
@@ -178,15 +170,12 @@ def upload_model_to_registry(project, model, model_name: str = "aqi_predictor",
         print(f"  ✓ Model entry created")
         print(f"  Uploading model files...")
         
-        # Upload model files
         aqi_model.save(model_dir)
         
         print(f"  ✓ Model uploaded successfully!")
         
-        # Clean up temp directory
         shutil.rmtree(model_dir)
         
-        # Get version
         version = aqi_model.version
         print(f"  ✓ Model version: {version}")
         

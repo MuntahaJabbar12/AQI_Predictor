@@ -14,14 +14,12 @@ from datetime import datetime, timedelta
 from typing import Dict, Optional
 import time
 
-# Load environment variables (optional - GitHub Actions provides them directly)
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except:
-    pass  # In GitHub Actions, env vars are already available
+    pass
 
-# Configuration
 OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
 LATITUDE = float(os.getenv('LATITUDE', 24.8607))
 LONGITUDE = float(os.getenv('LONGITUDE', 67.0011))
@@ -52,7 +50,7 @@ def fetch_weather_data(lat: float = LATITUDE, lon: float = LONGITUDE) -> Optiona
                 "timezone": "auto"
             }
             
-            response = requests.get(url, params=params, timeout=30)  # Increased to 30 seconds
+            response = requests.get(url, params=params, timeout=30)
             response.raise_for_status()
             
             data = response.json()
@@ -111,7 +109,7 @@ def fetch_pollution_data(lat: float = LATITUDE, lon: float = LONGITUDE) -> Optio
                 "appid": OPENWEATHER_API_KEY
             }
             
-            response = requests.get(url, params=params, timeout=30)  # Increased to 30 seconds
+            response = requests.get(url, params=params, timeout=30)
             response.raise_for_status()
             
             data = response.json()
@@ -204,19 +202,18 @@ def fetch_all_current_data() -> Optional[Dict]:
     print(f"{'='*50}\n")
     
     weather = fetch_weather_data()
-    time.sleep(1)  # Rate limiting - be nice to APIs
+    time.sleep(1)
     pollution = fetch_pollution_data()
     
     if weather is None or pollution is None:
         print("\n✗ Failed to fetch complete data")
         return None
     
-    # Combine the data
     combined_data = {
         'city': CITY_NAME,
         'latitude': LATITUDE,
         'longitude': LONGITUDE,
-        'timestamp': pollution['timestamp'],  # Use pollution timestamp as primary
+        'timestamp': pollution['timestamp'],
         'temperature': weather['temperature'],
         'humidity': weather['humidity'],
         'pressure': weather['pressure'],
@@ -237,11 +234,9 @@ def fetch_all_current_data() -> Optional[Dict]:
     return combined_data
 
 
-# Test function
 if __name__ == "__main__":
     print("Testing Data Fetching Module\n")
     
-    # Test current data
     data = fetch_all_current_data()
     
     if data:

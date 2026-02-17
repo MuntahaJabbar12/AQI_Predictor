@@ -16,7 +16,6 @@ import os
 import joblib
 import json
 
-# Add parent directory
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
@@ -25,7 +24,6 @@ try:
 except:
     HOPSWORKS_AVAILABLE = False
 
-# Page config
 st.set_page_config(
     page_title="AQI Intelligence Dashboard - Karachi",
     page_icon="🌫️",
@@ -33,7 +31,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
 st.markdown("""
 <style>
     .main-title {
@@ -131,13 +128,11 @@ def load_models():
     try:
         base_path = os.path.join(os.path.dirname(__file__), '..', 'training_pipeline', 'models')
         
-        # Load metadata first
         metadata_path = os.path.join(base_path, 'metadata.json')
         if os.path.exists(metadata_path):
             with open(metadata_path, 'r') as f:
                 metadata = json.load(f)
         
-        # Load models
         model_files = {
             'RandomForest': 'randomforest.pkl',
             'XGBoost': 'xgboost.pkl',
@@ -178,10 +173,8 @@ def generate_forecast(model, scaler, latest_data, hours=72):
         is_night = hour >= 22 or hour <= 6
         is_afternoon = 12 <= hour <= 16
         
-        # Day-to-day variation
         day_factor = {0: 1.0, 1: 0.88, 2: 0.95}.get(day_num, 0.82)
         
-        # Temperature
         if is_night:
             temp = base_temp - 4 - (day_num * 0.5)
         elif is_afternoon:
@@ -189,7 +182,6 @@ def generate_forecast(model, scaler, latest_data, hours=72):
         else:
             temp = base_temp - (day_num * 0.2)
         
-        # PM2.5 variation
         pm_multiplier = 1.0
         if is_rush:
             pm_multiplier *= 1.35
@@ -249,11 +241,9 @@ def generate_forecast(model, scaler, latest_data, hours=72):
 
 
 def main():
-    # Header
     st.markdown('<div class="main-title">🌫️ Air Quality Intelligence Dashboard</div>', unsafe_allow_html=True)
     st.markdown('<div class="subtitle">Live AQI + 72-hour forecast • AI-powered predictions • Health guidance</div>', unsafe_allow_html=True)
     
-    # Sidebar
     with st.sidebar:
         st.markdown("### 🎛️ System Status")
         st.markdown("""
@@ -282,41 +272,34 @@ def main():
         **Developed by Muntaha Jabbar • 2026**
         """)
     
-    # Load data
     df = load_data()
     if df is None or len(df) == 0:
         st.error("⚠️ Unable to load data. Please check connection.")
         return
     
-    # Load models with metadata
     models, scaler, metadata = load_models()
     if not models or scaler is None:
         st.warning("⚠️ Models not loaded. Train models first.")
         return
     
-    # Current AQI
     latest = df.iloc[-1]
     current_aqi_cat = int(latest['aqi'])
     current_aqi_epa = convert_to_epa(current_aqi_cat)
     color, label, emoji = get_aqi_color_and_label(current_aqi_epa)
     
-    # Best model - AUTO-DETECT from metadata
-    best_model_name = "RandomForest"  # Default fallback
+    best_model_name = "RandomForest"
     best_rmse = 0.01
     
     if metadata and 'best_model' in metadata:
         best_model_name = metadata['best_model']
         best_rmse = metadata.get('best_rmse', 0.01)
     
-    # Get the model
     best_model = models.get(best_model_name)
     
-    # Fallback if model not found
     if not best_model and len(models) > 0:
         best_model_name = list(models.keys())[0]
         best_model = models[best_model_name]
     
-    # Generate forecasts
     if best_model:
         forecast_df = generate_forecast(best_model, scaler, df, hours=72)
         if len(forecast_df) < 72:
@@ -324,7 +307,6 @@ def main():
     else:
         forecast_df = pd.DataFrame()
     
-    # Current Status Box
     st.markdown(f"""
     <div class="aqi-current" style="background-color: {color};">
         <div>Current Air Quality: {label} (AQI {current_aqi_epa})</div>
@@ -334,7 +316,6 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
-    # Model info with metadata
     model_info = f"**Best Model:** {best_model_name} • **RMSE:** {best_rmse:.4f}"
     
     if metadata:
@@ -348,7 +329,6 @@ def main():
     
     st.markdown(model_info)
     
-    # Key Metrics
     st.markdown("---")
     st.header("📊 Key Metrics")
     
@@ -399,7 +379,6 @@ def main():
             </div>
             """, unsafe_allow_html=True)
     
-    # Chart
     st.markdown("---")
     st.header("📈 Air Quality Trend — Historical & 72-Hour Forecast")
     
@@ -440,7 +419,6 @@ def main():
     
     st.plotly_chart(fig, use_container_width=True)
     
-    # Forecast Table
     st.markdown("---")
     st.header("🧾 Complete 72-Hour Forecast Table")
     
@@ -504,7 +482,6 @@ def main():
     else:
         st.warning("⚠️ Forecast not available. Click 'Refresh Forecast' in sidebar.")
     
-    # Export
     st.markdown("---")
     st.header("⬇️ Export Reports")
     
@@ -536,7 +513,6 @@ def main():
             use_container_width=True
         )
     
-    # Health Guidance
     st.markdown("---")
     st.header("🩺 Health Guidance")
     
@@ -551,7 +527,6 @@ def main():
     else:
         st.error("☠️ **Very Unhealthy/Hazardous** - Avoid all outdoor activities. Stay indoors.")
     
-    # Data Insights
     st.markdown("---")
     st.header("📌 Data Insights")
     
@@ -564,7 +539,6 @@ def main():
     with col3:
         st.metric("Total Records", f"{len(df)}")
     
-    # Footer
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; color: #666; padding: 1rem;">

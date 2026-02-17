@@ -20,10 +20,8 @@ import joblib
 from sklearn.model_selection import cross_val_score
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
-# Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Try to import SHAP
 try:
     import shap
     SHAP_AVAILABLE = True
@@ -72,7 +70,6 @@ def plot_residuals(y_true, y_pred, model_name='Model'):
     
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
     
-    # 1. Predicted vs Actual
     axes[0].scatter(y_true, y_pred, alpha=0.5)
     axes[0].plot([y_true.min(), y_true.max()], 
                  [y_true.min(), y_true.max()], 
@@ -82,7 +79,6 @@ def plot_residuals(y_true, y_pred, model_name='Model'):
     axes[0].set_title(f'{model_name}: Predicted vs Actual')
     axes[0].grid(True, alpha=0.3)
     
-    # 2. Residuals vs Predicted
     axes[1].scatter(y_pred, residuals, alpha=0.5)
     axes[1].axhline(y=0, color='r', linestyle='--', lw=2)
     axes[1].set_xlabel('Predicted AQI')
@@ -90,7 +86,6 @@ def plot_residuals(y_true, y_pred, model_name='Model'):
     axes[1].set_title(f'{model_name}: Residual Plot')
     axes[1].grid(True, alpha=0.3)
     
-    # 3. Residual Distribution
     axes[2].hist(residuals, bins=30, edgecolor='black')
     axes[2].axvline(x=0, color='r', linestyle='--', lw=2)
     axes[2].set_xlabel('Residuals')
@@ -100,7 +95,6 @@ def plot_residuals(y_true, y_pred, model_name='Model'):
     
     plt.tight_layout()
     
-    # Save plot
     os.makedirs('plots', exist_ok=True)
     plt.savefig(f'plots/{model_name.replace(" ", "_").lower()}_residuals.png', 
                 dpi=300, bbox_inches='tight')
@@ -135,7 +129,6 @@ def plot_feature_importance(model, feature_names, model_name='Model', top_n=20):
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     
-    # Save plot
     os.makedirs('plots', exist_ok=True)
     plt.savefig(f'plots/{model_name.replace(" ", "_").lower()}_feature_importance.png',
                 dpi=300, bbox_inches='tight')
@@ -143,7 +136,6 @@ def plot_feature_importance(model, feature_names, model_name='Model', top_n=20):
     
     plt.close()
     
-    # Print top features
     print(f"\n🔝 Top 10 Most Important Features for {model_name}:")
     for i in range(min(10, top_n)):
         idx = indices[i]
@@ -168,23 +160,17 @@ def shap_analysis(model, X_sample, feature_names, model_name='Model'):
         print(f"\n🔍 Running SHAP analysis for {model_name}...")
         print(f"   Using {len(X_sample)} samples")
         
-        # Create explainer based on model type
         if hasattr(model, 'feature_importances_'):
-            # Tree-based model
             explainer = shap.TreeExplainer(model)
         else:
-            # Linear model or other
             explainer = shap.LinearExplainer(model, X_sample)
         
-        # Calculate SHAP values
         shap_values = explainer.shap_values(X_sample)
         
-        # Summary plot
         plt.figure(figsize=(12, 8))
         shap.summary_plot(shap_values, X_sample, feature_names=feature_names, show=False)
         plt.tight_layout()
         
-        # Save plot
         os.makedirs('plots', exist_ok=True)
         plt.savefig(f'plots/{model_name.replace(" ", "_").lower()}_shap_summary.png',
                     dpi=300, bbox_inches='tight')
@@ -192,7 +178,6 @@ def shap_analysis(model, X_sample, feature_names, model_name='Model'):
         
         plt.close()
         
-        # Feature importance from SHAP
         plt.figure(figsize=(12, 8))
         shap.summary_plot(shap_values, X_sample, feature_names=feature_names, 
                          plot_type='bar', show=False)
@@ -220,13 +205,10 @@ def evaluate_model_comprehensive(model_name='random_forest'):
     print(f"📊 COMPREHENSIVE MODEL EVALUATION: {model_name.upper()}")
     print("="*60 + "\n")
     
-    # Load model
     model, scaler, feature_names = load_model_and_data(model_name)
     if model is None:
         return
     
-    # Load test data (you'll need to save this during training)
-    # For now, we'll note that this requires the training script to save test data
     print("⚠️  Note: Full evaluation requires test data from training pipeline")
     print("   Run train_model.py first to generate test data")
     
