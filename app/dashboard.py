@@ -219,7 +219,7 @@ def generate_forecast(df, model, scaler, feature_names, hours=72):
             pred = last_aqi + daily + np.random.normal(0, 0.05)
 
         pred = float(np.clip(pred, 1.0, 5.0))
-        category, emoji, color, health = get_aqi_info(pred)
+        category, emoji, color, health, epa = get_aqi_info(pred)
         forecasts.append({
             'timestamp': ts,
             'aqi': round(pred, 2),
@@ -451,19 +451,22 @@ with tab1:
             'timestamp': timestamps,
             'aqi': aqi_vals,
         })
-        forecast_df[['category', 'emoji', 'color', 'health_message']] = forecast_df['aqi'].apply(
+        forecast_df[['category', 'emoji', 'color', 'health_message', 'epa']] = forecast_df['aqi'].apply(
             lambda x: pd.Series(get_aqi_info(x))
         )
 
     fig = go.Figure()
-    historical = df.tail(168)
+    historical = df.tail(168).copy()
+    historical['epa_aqi'] = historical['aqi'].apply(convert_to_epa)
+    forecast_df['epa_aqi'] = forecast_df['aqi'].apply(convert_to_epa)
+
     fig.add_trace(go.Scatter(
-        x=historical['timestamp'], y=historical['aqi'],
+        x=historical['timestamp'], y=historical['epa_aqi'],
         mode='lines', name='Historical',
         line=dict(color='#3366cc', width=2)
     ))
     fig.add_trace(go.Scatter(
-        x=forecast_df['timestamp'], y=forecast_df['aqi'],
+        x=forecast_df['timestamp'], y=forecast_df['epa_aqi'],
         mode='lines', name='Forecast (72h)',
         line=dict(color='#dc3912', width=2, dash='dash')
     ))
@@ -472,16 +475,17 @@ with tab1:
         x1=forecast_df['timestamp'].iloc[-1],
         fillcolor="rgba(255,0,0,0.05)", line_width=0
     )
-    fig.add_hrect(y0=0, y1=1.5, fillcolor="#00e400", opacity=0.08, line_width=0, annotation_text="Good")
-    fig.add_hrect(y0=1.5, y1=2.5, fillcolor="#ffff00", opacity=0.08, line_width=0, annotation_text="Moderate")
-    fig.add_hrect(y0=2.5, y1=3.5, fillcolor="#ff7e00", opacity=0.08, line_width=0, annotation_text="Unhealthy*")
-    fig.add_hrect(y0=3.5, y1=4.5, fillcolor="#ff0000", opacity=0.08, line_width=0, annotation_text="Unhealthy")
-    fig.add_hrect(y0=4.5, y1=6.0, fillcolor="#8f3f97", opacity=0.08, line_width=0, annotation_text="Hazardous")
+    fig.add_hrect(y0=0, y1=50, fillcolor="#00e400", opacity=0.08, line_width=0, annotation_text="Good")
+    fig.add_hrect(y0=50, y1=100, fillcolor="#ffff00", opacity=0.08, line_width=0, annotation_text="Moderate")
+    fig.add_hrect(y0=100, y1=150, fillcolor="#ff7e00", opacity=0.08, line_width=0, annotation_text="USG")
+    fig.add_hrect(y0=150, y1=200, fillcolor="#ff0000", opacity=0.08, line_width=0, annotation_text="Unhealthy")
+    fig.add_hrect(y0=200, y1=300, fillcolor="#8f3f97", opacity=0.08, line_width=0, annotation_text="Very Unhealthy")
+    fig.add_hrect(y0=300, y1=500, fillcolor="#7e0023", opacity=0.08, line_width=0, annotation_text="Hazardous")
 
     fig.update_layout(
-        title="Historical + 72-Hour Forecast",
+        title="Historical + 72-Hour Forecast (EPA AQI Scale)",
         xaxis_title="Date & Time",
-        yaxis_title="AQI Index",
+        yaxis_title="EPA AQI (0-500)",
         hovermode='x unified',
         height=500,
         legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
