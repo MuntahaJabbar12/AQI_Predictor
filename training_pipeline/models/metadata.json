@@ -1,8 +1,8 @@
 {
-  "training_date": "2026-02-16 19:09:04",
+  "training_date": "2026-02-18 04:26:22",
   "data_source": "Combined (Historical + Real-time)",
-  "duration_days": 89,
-  "meets_3_month_requirement": false,
+  "duration_days": 93,
+  "meets_3_month_requirement": true,
   "num_features": 34,
   "feature_names": [
     "temperature",
@@ -40,8 +40,8 @@
     "aqi_change_rate",
     "aqi_change_rate_pct"
   ],
-  "best_model": "XGBoost",
-  "best_rmse": 0.3878,
-  "best_mae": 0.2558,
-  "best_r2": 0.7859
+  "best_model": "LightGBM",
+  "best_rmse": 0.2329,
+  "best_mae": 0.1545,
+  "best_r2": 0.9073
 }
