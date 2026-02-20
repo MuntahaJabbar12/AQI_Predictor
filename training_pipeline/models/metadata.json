@@ -1,7 +1,7 @@
 {
-  "training_date": "2026-02-19 04:25:05",
+  "training_date": "2026-02-20 04:20:37",
   "data_source": "Combined (Historical + Real-time)",
-  "duration_days": 94,
+  "duration_days": 95,
   "meets_3_month_requirement": true,
   "num_features": 34,
   "feature_names": [
@@ -41,7 +41,7 @@
     "aqi_change_rate_pct"
   ],
   "best_model": "LightGBM",
-  "best_rmse": 0.2555,
-  "best_mae": 0.1682,
-  "best_r2": 0.887
+  "best_rmse": 0.2654,
+  "best_mae": 0.1727,
+  "best_r2": 0.8781
 }
